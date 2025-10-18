@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  jenkins-master:
+    image: jenkins/jenkins:lts
+    container_name: jenkins-master
+    user: root
+    ports:
+      - "8080:8080"      # Jenkins UI
+      - "50000:50000"    # Agent connection
+    volumes:
+      - ./jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - JAVA_OPTS=-Djenkins.install.runSetupWizard=false
+    networks:
+      - jenkins-network
+    restart: unless-stopped
+
+  jenkins-agent:
+    image: jenkins/inbound-agent:latest
+    container_name: jenkins-agent-1
+    environment:
+      - JENKINS_URL=http://jenkins-master:8080
+      - JENKINS_AGENT_NAME=agent-1
+      - JENKINS_AGENT_WORKDIR=/home/jenkins/agent
+    volumes:
+      - ./jenkins_agent:/home/jenkins/agent
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - jenkins-master
+    networks:
+      - jenkins-network
+    restart: unless-stopped
+
+networks:
+  jenkins-network:
+    driver: bridge
