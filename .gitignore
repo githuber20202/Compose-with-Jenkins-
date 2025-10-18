@@ -1,0 +1,24 @@
+# Jenkins data directory - DO NOT COMMIT
+jenkins_home/
+jenkins_agent/
+
+# Docker volumes
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Temporary files
+*.tmp
+*.swp
+*~
+
+# Secrets
+*.key
+*.pem
+secrets/
