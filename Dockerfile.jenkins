@@ -1,0 +1,30 @@
+# Start from official Jenkins LTS image
+# Note: This image may contain vulnerabilities - acceptable for learning environments
+# For production, consider using a more recent version or hardened image
+FROM jenkins/jenkins:lts
+
+# Switch to root user to install packages
+USER root
+
+# Install Python, pip, and git
+RUN apt-get update && \
+    apt-get install -y \
+    python3 \
+    python3-pip \
+    python3-venv \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create symbolic link for python command
+RUN ln -s /usr/bin/python3 /usr/bin/python
+
+# Verify installations
+RUN python3 --version && \
+    pip3 --version && \
+    git --version
+
+# Switch back to jenkins user (security best practice)
+USER jenkins
+
+# Expose Jenkins ports
+EXPOSE 8080 50000

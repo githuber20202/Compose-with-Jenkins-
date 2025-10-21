@@ -1,8 +1,8 @@
-version: '3.8'
-
 services:
   jenkins-master:
-    image: jenkins/jenkins:lts
+    build:
+      context: .
+      dockerfile: Dockerfile.jenkins
     container_name: jenkins-master
     user: root
     ports:
