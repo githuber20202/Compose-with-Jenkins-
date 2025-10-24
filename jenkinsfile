@@ -1,0 +1,120 @@
+pipeline {
+    agent any
+    
+    environment {
+        DOCKER_HUB_REPO = 'formy5000/resources_viewer'
+        DOCKER_HUB_CREDS = credentials('dockerhub-credentials')
+    }
+    
+    stages {
+        stage('Workspace Cleanup') {
+            steps {
+                echo '🧹 Cleaning workspace...'
+                deleteDir()
+            }
+        }
+        
+        stage('Checkout') {
+            steps {
+                echo '📦 Cloning from GitHub...'
+                git branch: 'main', 
+                    url: 'https://github.com/githuber20202/JB-PROJECT.git'
+                
+                script {
+                    env.GIT_COMMIT_SHORT = sh(
+                        script: "git rev-parse --short HEAD",
+                        returnStdout: true
+                    ).trim()
+                    
+                    echo "📍 Git commit: ${env.GIT_COMMIT_SHORT}"
+                }
+                
+                sh 'ls -la'
+            }
+        }
+        
+        stage('Verify Files') {
+            steps {
+                echo '🔍 Checking required files...'
+                sh '''
+                    test -f app.py && echo "✅ app.py" || exit 1
+                    test -f Dockerfile && echo "✅ Dockerfile" || exit 1
+                    test -f requirements.txt && echo "✅ requirements.txt" || exit 1
+                '''
+            }
+        }
+        
+        stage('Build & Push with Docker') {
+            steps {
+                echo '🔨 Building with Docker (simpler approach)...'
+                script {
+                    // Login
+                    sh 'echo $DOCKER_HUB_CREDS_PSW | docker login -u $DOCKER_HUB_CREDS_USR --password-stdin'
+                    
+                    // Build
+                    sh """
+                        docker build -t ${DOCKER_HUB_REPO}:latest .
+                        docker tag ${DOCKER_HUB_REPO}:latest ${DOCKER_HUB_REPO}:build-${BUILD_NUMBER}
+                        docker tag ${DOCKER_HUB_REPO}:latest ${DOCKER_HUB_REPO}:sha-${env.GIT_COMMIT_SHORT}
+                    """
+                    
+                    // Push
+                    sh """
+                        docker push ${DOCKER_HUB_REPO}:latest
+                        docker push ${DOCKER_HUB_REPO}:build-${BUILD_NUMBER}
+                        docker push ${DOCKER_HUB_REPO}:sha-${env.GIT_COMMIT_SHORT}
+                    """
+                    
+                    // Logout
+                    sh 'docker logout'
+                    
+                    echo '✅ Build & Push complete!'
+                }
+            }
+        }
+        
+        stage('Test Pull') {
+            steps {
+                echo '🧪 Testing pull...'
+                sh """
+                    docker pull ${DOCKER_HUB_REPO}:latest
+                    docker images | grep resources_viewer
+                """
+            }
+        }
+        
+        stage('Cleanup') {
+            steps {
+                echo '🧹 Cleaning local images...'
+                sh """
+                    docker rmi ${DOCKER_HUB_REPO}:latest || true
+                    docker rmi ${DOCKER_HUB_REPO}:build-${BUILD_NUMBER} || true
+                    docker rmi ${DOCKER_HUB_REPO}:sha-${env.GIT_COMMIT_SHORT} || true
+                """
+            }
+        }
+    }
+    
+    post {
+        success {
+            echo """
+            
+            ╔═══════════════════════════════════════════╗
+            ║     🎉 CI Pipeline SUCCESS! 🎉           ║
+            ╚═══════════════════════════════════════════╝
+            
+            📦 Images: ${DOCKER_HUB_REPO}
+            
+            Tags:
+            ✓ latest
+            ✓ build-${BUILD_NUMBER}
+            ✓ sha-${env.GIT_COMMIT_SHORT}
+
+            🔗 https://hub.docker.com/r/${DOCKER_HUB_REPO}/tags
+            """
+        }
+        failure {
+            echo "❌ Failed - check logs"
+        }
+    }
+}
