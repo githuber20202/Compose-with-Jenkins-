@@ -13,15 +13,28 @@ RUN apt-get update && \
     python3-pip \
     python3-venv \
     git \
+    curl \
+    ca-certificates \
+    gnupg \
+    lsb-release \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Docker CLI
+RUN curl -fsSL https://get.docker.com -o get-docker.sh && \
+    sh get-docker.sh && \
+    rm get-docker.sh
 
 # Create symbolic link for python command
 RUN ln -s /usr/bin/python3 /usr/bin/python
 
+# Fix Git safe.directory
+RUN git config --global --add safe.directory '*'
+
 # Verify installations
 RUN python3 --version && \
     pip3 --version && \
-    git --version
+    git --version && \
+    docker --version
 
 # Switch back to jenkins user (security best practice)
 USER jenkins
