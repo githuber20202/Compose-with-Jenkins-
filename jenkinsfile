@@ -94,7 +94,7 @@ pipeline {
                         grep "tag:" aws-resources-viewer/values.yaml
                         
                         # Configure git
-                        git config user.email "jenkins@jb-project.com"
+                        git config user.email "githuber20202@users.noreply.github.com"
                         git config user.name "Jenkins CI"
                         
                         # Commit and push
