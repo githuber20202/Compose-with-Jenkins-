@@ -4,6 +4,8 @@ pipeline {
     environment {
         DOCKER_HUB_REPO = 'formy5000/resources_viewer'
         DOCKER_HUB_CREDS = credentials('dockerhub-credentials')
+        GITOPS_REPO = 'https://github.com/githuber20202/jb-gitops.git'
+        GITHUB_CREDS = credentials('github-credentials')
     }
     
     stages {
@@ -73,6 +75,41 @@ pipeline {
             }
         }
         
+        stage('Update GitOps Repository') {
+            steps {
+                echo '📝 Updating Helm values.yaml with new image tag...'
+                script {
+                    // Clone GitOps repo
+                    sh """
+                        cd ${WORKSPACE}
+                        rm -rf gitops-temp
+                        git clone ${GITOPS_REPO} gitops-temp
+                        cd gitops-temp
+                        
+                        # Update values.yaml with new tag
+                        sed -i 's/tag: .*/tag: "sha-${env.GIT_COMMIT_SHORT}"/' aws-resources-viewer/values.yaml
+                        
+                        # Show the change
+                        echo "Updated values.yaml:"
+                        grep "tag:" aws-resources-viewer/values.yaml
+                        
+                        # Configure git
+                        git config user.email "jenkins@jb-project.com"
+                        git config user.name "Jenkins CI"
+                        
+                        # Commit and push
+                        git add aws-resources-viewer/values.yaml
+                        git commit -m "Update image tag to sha-${env.GIT_COMMIT_SHORT} (Build #${BUILD_NUMBER})"
+                        
+                        # Push with credentials
+                        git push https://${GITHUB_CREDS_USR}:${GITHUB_CREDS_PSW}@github.com/githuber20202/jb-gitops.git main
+                    """
+                    
+                    echo '✅ GitOps repository updated!'
+                }
+            }
+        }
+
         stage('Test Pull') {
             steps {
                 echo '🧪 Testing pull...'
@@ -83,9 +120,9 @@ pipeline {
             }
         }
         
-        stage('Cleanup') {
+        stage('Cleanup Docker Images') {
             steps {
-                echo '🧹 Cleaning local images...'
+                echo '🧹 Cleaning local Docker images...'
                 sh """
                     docker rmi ${DOCKER_HUB_REPO}:latest || true
                     docker rmi ${DOCKER_HUB_REPO}:build-${BUILD_NUMBER} || true
@@ -103,18 +140,38 @@ pipeline {
             ║     🎉 CI Pipeline SUCCESS! 🎉           ║
             ╚═══════════════════════════════════════════╝
             
-            📦 Images: ${DOCKER_HUB_REPO}
+            ═══════════════════════════════════════════
+            📦 Docker Images Published:
+            ═══════════════════════════════════════════
+            
+            Repository: ${DOCKER_HUB_REPO}
             
             Tags:
             ✓ latest
             ✓ build-${BUILD_NUMBER}
             ✓ sha-${env.GIT_COMMIT_SHORT}
-
-            🔗 https://hub.docker.com/r/${DOCKER_HUB_REPO}/tags
+            
+            🔗 Docker Hub:
+            https://hub.docker.com/r/${DOCKER_HUB_REPO}/tags
+            
+            ═══════════════════════════════════════════
+            📝 GitOps Updated:
+            ═══════════════════════════════════════════
+            
+            Repository: jb-gitops
+            File: aws-resources-viewer/values.yaml
+            New tag: sha-${env.GIT_COMMIT_SHORT}
+            
+            🔗 GitHub:
+            https://github.com/githuber20202/jb-gitops
+            
+            ═══════════════════════════════════════════
+            🚀 Next: Argo CD will sync automatically!
+            ═══════════════════════════════════════════
             """
         }
         failure {
-            echo "❌ Failed - check logs"
+            echo "❌ Pipeline failed - check logs above"
         }
     }
 }
