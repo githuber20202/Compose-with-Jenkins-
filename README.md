@@ -1,26 +1,27 @@
-# Jenkins CI/CD Pipeline - Production-Ready Setup
+# Jenkins CI Infrastructure - Containerized Setup
 
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat&logo=docker&logoColor=white)
 ![Jenkins](https://img.shields.io/badge/Jenkins-LTS-D24939?style=flat&logo=jenkins&logoColor=white)
-![CI/CD](https://img.shields.io/badge/CI%2FCD-Pipeline-success?style=flat)
-![GitOps](https://img.shields.io/badge/GitOps-Enabled-blue?style=flat)
+![CI](https://img.shields.io/badge/CI-Continuous%20Integration-success?style=flat)
+![Infrastructure](https://img.shields.io/badge/Infrastructure-as%20Code-orange?style=flat)
 
 ## 📋 Overview
 
-A **production-grade CI/CD pipeline** implementation using Jenkins, Docker, and GitOps methodology. This project demonstrates a complete automated workflow from code commit to deployment, featuring:
+A **containerized Jenkins infrastructure** setup for Continuous Integration (CI) workflows. This project provides a production-ready Jenkins environment with master-agent architecture, designed to run automated build and test pipelines.
 
-- **Containerized Jenkins** with master-agent architecture
-- **Automated Docker builds** and registry push
-- **GitOps-based deployment** with Argo CD integration
-- **Multi-stage pipeline** with quality gates
-- **Infrastructure as Code** approach
+**This repository focuses on the CI infrastructure layer:**
+- **Containerized Jenkins Master** - Central orchestration and UI
+- **Jenkins Agent(s)** - Distributed build executors
+- **Docker-in-Docker capability** - Build Docker images within pipelines
+- **Persistent storage** - Jenkins configuration and build history
+- **Network isolation** - Secure container communication
 
 **Key Features:**
-- Automated build, test, and deployment pipeline
-- Docker image versioning with Git SHA and build numbers
-- GitOps repository updates for declarative deployments
-- Scalable Jenkins agent architecture
-- Complete CI/CD workflow automation
+- Jenkins master-agent architecture for scalable builds
+- Docker Compose orchestration for easy deployment
+- Custom Jenkins image with pre-installed tools (Python, Git, Docker CLI)
+- Persistent volumes for data retention
+- Ready for CI pipeline execution
 
 ---
 
@@ -286,35 +287,112 @@ docker system df
 
 ## 🔗 Related Repositories
 
-This Jenkins lab is part of a complete CI/CD learning series:
+This Jenkins infrastructure is part of a complete CI/CD workflow:
 
-- **[JB-PROJECT](https://github.com/githuber20202/JB-PROJECT)** - Python Flask application (source code)
-- **[jb-gitops](https://github.com/githuber20202/jb-gitops)** - GitOps repository with Helm charts
-- **[Compose-with-Jenkins](https://github.com/githuber20202/Compose-with-Jenkins-.git)** - This repository (Jenkins setup)
+- **[JB-PROJECT](https://github.com/githuber20202/JB-PROJECT)** - Application source code (Python Flask)
+- **[jb-gitops](https://github.com/githuber20202/jb-gitops)** - GitOps repository for CD (Helm charts + Argo CD)
+- **[Compose-with-Jenkins](https://github.com/githuber20202/Compose-with-Jenkins-.git)** - This repository (CI infrastructure)
 
-**Complete Workflow:**
-1. **Code** → JB-PROJECT (application source)
-2. **Build** → This Jenkins Lab (CI pipeline)
-3. **Deploy** → jb-gitops (Argo CD + Kubernetes)
+**Separation of Concerns:**
+- **CI (This Repo)** → Jenkins infrastructure for building and testing
+- **CD (GitOps Repo)** → Argo CD handles deployment to Kubernetes
+- **Source Code** → Application being built and deployed
+
+**What is GitOps?**
+
+GitOps is a deployment methodology where:
+- Infrastructure and application configurations are stored in Git
+- Git serves as the single source of truth
+- Automated tools (like Argo CD) sync Git state to the cluster
+- Changes are made via Git commits, not manual kubectl commands
+
+**In this architecture:**
+1. **Jenkins (CI)** builds Docker images and pushes to registry
+2. **Jenkins updates** the `values.yaml` file in the GitOps repository with the new image tag
+3. **Argo CD (CD)** detects the Git commit and deploys automatically to Kubernetes
+4. **Kubernetes** runs the updated application
+
+**Why update values.yaml in Git?**
+
+The `values.yaml` file in the GitOps repository contains Helm chart configuration, including:
+```yaml
+image:
+  repository: formy5000/resources_viewer
+  tag: "sha-abc123"  # ← Jenkins updates this line
+```
+
+When Jenkins builds a new Docker image, it:
+1. Tags the image with the Git commit SHA (e.g., `sha-abc123`)
+2. Pushes the image to Docker Hub
+3. **Updates the `values.yaml` file** in the GitOps repo with the new tag
+4. Commits and pushes the change to GitHub
+
+This Git commit triggers Argo CD to:
+- Detect the change in the GitOps repository
+- Pull the new Helm values
+- Deploy the updated application to Kubernetes
+
+**Benefits of this approach:**
+- ✅ **Separation of concerns** - CI builds, CD deploys
+- ✅ **Git as source of truth** - All changes tracked in version control
+- ✅ **Audit trail** - Every deployment has a Git commit
+- ✅ **Easy rollbacks** - Revert the Git commit to rollback
+- ✅ **No direct cluster access** - Jenkins doesn't need Kubernetes credentials
 
 ---
 
-## 📚 Pipeline Stages
+## 📚 What This Repository Provides
 
-This project implements a complete CI/CD workflow:
+This repository focuses **exclusively on the CI infrastructure**:
 
-**Implemented Stages:**
-- ✅ **Stage 1**: Jenkins Infrastructure Setup
-- ✅ **Stage 2**: Automated Docker builds and registry push
-- ✅ **Stage 3**: GitOps repository updates (Helm values)
-- ✅ **Stage 4**: Argo CD integration for automated deployment
-- 🔄 **Stage 5**: Monitoring and observability (planned)
+**Included in This Repo:**
+- ✅ Jenkins Master container configuration
+- ✅ Jenkins Agent(s) setup for distributed builds
+- ✅ Docker Compose orchestration
+- ✅ Custom Jenkins image with build tools (Python, Git, Docker CLI)
+- ✅ Network and volume configuration
+- ✅ Example Jenkinsfile demonstrating:
+  - Building Docker images
+  - Pushing to Docker Hub
+  - **Updating values.yaml in GitOps repository**
+
+**NOT Included (Handled by Other Repos):**
+- ❌ Application source code → See [JB-PROJECT](https://github.com/githuber20202/JB-PROJECT)
+- ❌ Kubernetes deployment configs → See [jb-gitops](https://github.com/githuber20202/jb-gitops)
+- ❌ Argo CD setup → Handled in GitOps repository
+- ❌ Helm charts → Stored in GitOps repository
+
+**CI vs CD Separation:**
+
+| Component | Responsibility | Repository |
+|-----------|---------------|------------|
+| **Jenkins (CI)** | Build images, Push to registry, **Update values.yaml** | This Repo |
+| **GitOps Repo** | Store Helm charts and values.yaml | jb-gitops |
+| **Argo CD (CD)** | Sync Git → Kubernetes, Deploy | jb-gitops |
+| **Application** | Source Code | JB-PROJECT |
+
+**Jenkins Pipeline Flow:**
+```
+1. Checkout code from JB-PROJECT
+2. Build Docker image
+3. Tag image with Git SHA (e.g., sha-abc123)
+4. Push image to Docker Hub
+5. Clone GitOps repository (jb-gitops)
+6. Update values.yaml with new image tag
+7. Commit and push to GitOps repository
+8. [Argo CD takes over from here]
+```
+
+**What Jenkins Does NOT Do:**
+- ❌ Does not deploy to Kubernetes directly
+- ❌ Does not need kubectl or cluster credentials
+- ❌ Does not manage Helm releases
+- ❌ Only updates the Git repository (GitOps principle)
 
 **Technical Documentation:**
 - [Jenkins Pipeline Documentation](https://www.jenkins.io/doc/book/pipeline/)
 - [Docker Compose Reference](https://docs.docker.com/compose/)
-- [GitOps Best Practices](https://www.gitops.tech/)
-- [Argo CD Documentation](https://argo-cd.readthedocs.io/)
+- [Jenkins Master-Agent Architecture](https://www.jenkins.io/doc/book/scaling/architecting-for-scale/)
 
 ---
 
@@ -362,6 +440,8 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 ---
 
-**Production-Ready CI/CD Pipeline** 🚀
+**Production-Ready CI Infrastructure** 🚀
+
+This repository provides the CI layer. For the complete CI/CD workflow, see the related repositories above.
 
 If you found this implementation useful, please ⭐ star the repository!
