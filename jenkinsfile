@@ -63,7 +63,9 @@ pipeline {
                     // Push
                     sh """
                         docker push ${DOCKER_HUB_REPO}:latest
+                        sleep 2
                         docker push ${DOCKER_HUB_REPO}:build-${BUILD_NUMBER}
+                        sleep 2
                         docker push ${DOCKER_HUB_REPO}:sha-${env.GIT_COMMIT_SHORT}
                     """
                     
