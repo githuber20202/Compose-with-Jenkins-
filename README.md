@@ -7,7 +7,7 @@
 
 ## 📋 Overview
 
-A **containerized Jenkins infrastructure** setup for Continuous Integration (CI) workflows. This project provides a production-ready Jenkins environment with master-agent architecture, designed to run automated build and test pipelines.
+A **containerized Jenkins infrastructure** setup for Continuous Integration (CI) workflows. This project provides a Jenkins environment with master-agent architecture for learning and development purposes, designed to run automated build and test pipelines.
 
 **This repository focuses on the CI infrastructure layer:**
 - **Containerized Jenkins Master** - Central orchestration and UI
@@ -122,6 +122,140 @@ jenkins-lab/
 - `docker-compose.yml` → Orchestrates Jenkins master and agent containers
 - `Dockerfile.jenkins` → Builds custom Jenkins image with Python, Git, and Docker CLI
 - `jenkinsfile` → Complete CI/CD pipeline example (build → push → GitOps update)
+
+---
+
+## 🐳 Docker CLI Installation Explained
+
+The `Dockerfile.jenkins` includes a critical section that installs Docker CLI inside the Jenkins container:
+
+```dockerfile
+# Install Docker CLI
+RUN curl -fsSL https://get.docker.com -o get-docker.sh && \
+    sh get-docker.sh && \
+    rm get-docker.sh
+```
+
+### What Does This Do?
+
+This command performs three operations in sequence:
+
+1. **`curl -fsSL https://get.docker.com -o get-docker.sh`**
+   - Downloads Docker's official installation script from `https://get.docker.com`
+   - Saves it as `get-docker.sh` in the container
+   - Flags explained:
+     - `-f` (fail silently) - Don't show error page on HTTP errors
+     - `-s` (silent) - Don't show progress bar
+     - `-S` (show errors) - Show errors even in silent mode
+     - `-L` (follow redirects) - Follow HTTP redirects if any
+
+2. **`sh get-docker.sh`**
+   - Executes the downloaded installation script
+   - Installs Docker CLI tools (docker command) inside the Jenkins container
+   - Detects the OS and installs the appropriate Docker version
+
+3. **`rm get-docker.sh`**
+   - Removes the installation script after use
+   - Keeps the Docker image size smaller (cleanup best practice)
+
+### Why Do We Need Docker CLI in Jenkins?
+
+**The Problem:**
+- Jenkins needs to build Docker images as part of CI pipelines
+- Jenkins runs inside a Docker container itself
+- By default, containers don't have Docker installed
+
+**The Solution:**
+- Install Docker CLI inside the Jenkins container
+- Mount the host's Docker socket (`/var/run/docker.sock`) as a volume
+- This allows Jenkins to communicate with the host's Docker daemon
+
+**How It Works:**
+```
+┌─────────────────────────────────────┐
+│   Jenkins Container                 │
+│                                     │
+│   ┌──────────────────┐             │
+│   │  Docker CLI      │             │
+│   │  (installed)     │             │
+│   └────────┬─────────┘             │
+│            │                        │
+│            │ communicates via       │
+│            │ /var/run/docker.sock   │
+└────────────┼────────────────────────┘
+             │
+             ▼
+┌─────────────────────────────────────┐
+│   Host Machine                      │
+│                                     │
+│   ┌──────────────────┐             │
+│   │  Docker Daemon   │             │
+│   │  (actual engine) │             │
+│   └──────────────────┘             │
+└─────────────────────────────────────┘
+```
+
+**What This Enables:**
+- ✅ Build Docker images from Jenkinsfile
+- ✅ Push images to Docker Hub/registries
+- ✅ Run Docker commands in pipeline stages
+- ✅ Test containerized applications
+
+**Example Pipeline Usage:**
+```groovy
+stage('Build Docker Image') {
+    steps {
+        script {
+            // This works because Docker CLI is installed
+            sh 'docker build -t myapp:latest .'
+            sh 'docker push myapp:latest'
+        }
+    }
+}
+```
+
+### Security Considerations
+
+⚠️ **Important Notes:**
+
+1. **Docker Socket Mounting**
+   - Mounting `/var/run/docker.sock` gives Jenkins **full Docker access**
+   - Jenkins can start/stop ANY container on the host
+   - This is a **security risk** in production environments
+
+2. **Alternative Approaches for Production:**
+   - **Docker-in-Docker (DinD)** - Run Docker daemon inside container
+   - **Kaniko** - Build images without Docker daemon
+   - **Buildah** - Daemonless container builds
+   - **Podman** - Rootless container engine
+
+3. **Why We Use This Approach:**
+   - ✅ Simple setup for learning
+   - ✅ Fast builds (uses host's Docker cache)
+   - ✅ No nested Docker daemon overhead
+   - ⚠️ **NOT recommended for production**
+
+### Verification
+
+After the container starts, you can verify Docker CLI installation:
+
+```bash
+# Check Docker CLI is installed
+docker exec jenkins-master docker --version
+
+# Test Docker access
+docker exec jenkins-master docker ps
+
+# View Docker info
+docker exec jenkins-master docker info
+```
+
+**Expected Output:**
+```
+Docker version 24.0.x, build xxxxx
+```
+
+If you see this output, Docker CLI is successfully installed and can communicate with the host's Docker daemon through the mounted socket.
 
 ---
 
