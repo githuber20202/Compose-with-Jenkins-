@@ -12,7 +12,7 @@ A **containerized Jenkins infrastructure** setup for Continuous Integration (CI)
 **This repository focuses on the CI infrastructure layer:**
 - **Containerized Jenkins Master** - Central orchestration and UI
 - **Jenkins Agent(s)** - Distributed build executors
-- **Docker-in-Docker capability** - Build Docker images within pipelines
+- **Docker capability via socket binding** - Build Docker images within pipelines
 - **Persistent storage** - Jenkins configuration and build history
 - **Network isolation** - Secure container communication
 
@@ -165,10 +165,11 @@ This command performs three operations in sequence:
 - Jenkins runs inside a Docker container itself
 - By default, containers don't have Docker installed
 
-**The Solution:**
+**The Solution: Docker Socket Binding (NOT Docker-in-Docker)**
 - Install Docker CLI inside the Jenkins container
 - Mount the host's Docker socket (`/var/run/docker.sock`) as a volume
 - This allows Jenkins to communicate with the host's Docker daemon
+- **Important:** This is NOT Docker-in-Docker (DinD)!
 
 **How It Works:**
 ```
@@ -214,25 +215,75 @@ stage('Build Docker Image') {
 }
 ```
 
+### Docker Socket Binding vs Docker-in-Docker (DinD)
+
+**What This Project Uses: Docker Socket Binding** 🔌
+
+This setup uses **Docker socket binding**, which means:
+- Jenkins container has Docker CLI installed
+- Host's Docker socket (`/var/run/docker.sock`) is mounted into the container
+- Jenkins uses the **host's Docker daemon** to build images
+- No separate Docker daemon runs inside Jenkins
+
+```
+Jenkins Container          Host Machine
+┌─────────────────┐       ┌──────────────────┐
+│  Docker CLI     │──────▶│  Docker Daemon   │
+│  (client only)  │ socket│  (actual engine) │
+└─────────────────┘       └──────────────────┘
+```
+
+**What is Docker-in-Docker (DinD)?** 🐳
+
+DinD is a **different approach** where:
+- A complete Docker daemon runs INSIDE the Jenkins container
+- Uses `docker:dind` image
+- Completely isolated from host's Docker
+- More secure but more complex
+
+```
+Jenkins Container
+┌─────────────────────────┐
+│  Docker CLI             │
+│       ↓                 │
+│  Docker Daemon (nested) │
+│  (runs inside container)│
+└─────────────────────────┘
+```
+
+**Comparison:**
+
+| Feature | Socket Binding (This Project) | Docker-in-Docker (DinD) |
+|---------|------------------------------|-------------------------|
+| **Setup Complexity** | ✅ Simple | ⚠️ Complex |
+| **Performance** | ✅ Fast (uses host cache) | ⚠️ Slower (no cache sharing) |
+| **Security** | ⚠️ Full host Docker access | ✅ Isolated |
+| **Resource Usage** | ✅ Low | ⚠️ High (nested daemon) |
+| **Production Ready** | ❌ No | ✅ Yes (with proper config) |
+| **Learning/Dev** | ✅ Perfect | ⚠️ Overkill |
+
 ### Security Considerations
 
-⚠️ **Important Notes:**
+⚠️ **Important Notes About Socket Binding:**
 
-1. **Docker Socket Mounting**
+1. **Docker Socket Mounting Risk**
    - Mounting `/var/run/docker.sock` gives Jenkins **full Docker access**
    - Jenkins can start/stop ANY container on the host
-   - This is a **security risk** in production environments
+   - Jenkins can access ALL Docker volumes on the host
+   - Essentially gives **root-equivalent access** to the host
+   - This is a **major security risk** in production environments
 
 2. **Alternative Approaches for Production:**
-   - **Docker-in-Docker (DinD)** - Run Docker daemon inside container
-   - **Kaniko** - Build images without Docker daemon
-   - **Buildah** - Daemonless container builds
+   - **Docker-in-Docker (DinD)** - Run isolated Docker daemon inside container
+   - **Kaniko** - Build images without Docker daemon (Kubernetes-native)
+   - **Buildah** - Daemonless container builds (rootless)
    - **Podman** - Rootless container engine
 
-3. **Why We Use This Approach:**
-   - ✅ Simple setup for learning
+3. **Why We Use Socket Binding for Learning:**
+   - ✅ Extremely simple setup
    - ✅ Fast builds (uses host's Docker cache)
    - ✅ No nested Docker daemon overhead
+   - ✅ Easy to understand and debug
    - ⚠️ **NOT recommended for production**
 
 ### Verification
