@@ -482,7 +482,7 @@ docker system df
 For production deployments, implement:
 
 - [ ] **Non-root user** - Run Jenkins as unprivileged user
-- [ ] **Remove Docker socket** - Use Docker-in-Docker or Kaniko
+- [ ] **Remove Docker socket** - Use Docker-in-Docker or Buildah
 - [ ] **Enable HTTPS** - Configure TLS with valid certificates
 - [ ] **Network segmentation** - Implement firewall rules
 - [ ] **Secrets management** - Use HashiCorp Vault or AWS Secrets Manager
@@ -494,13 +494,6 @@ For production deployments, implement:
 ### Alternative Build Methods
 
 For production environments, consider:
-
-**Kaniko** - Daemonless Docker builds
-```yaml
-# No Docker socket required
-# Runs in Kubernetes
-# Rootless execution
-```
 
 **Buildah** - Rootless container builds
 ```yaml
