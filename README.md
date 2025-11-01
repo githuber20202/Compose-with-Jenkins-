@@ -7,101 +7,174 @@
 
 ## 📋 Overview
 
-A **containerized Jenkins infrastructure** setup for Continuous Integration (CI) workflows. This project provides a Jenkins environment with master-agent architecture for learning and development purposes, designed to run automated build and test pipelines.
+A production-ready containerized Jenkins infrastructure for Continuous Integration workflows. This project implements a Jenkins master-agent architecture with Docker integration, designed for automated build and deployment pipelines.
 
-**This repository focuses on the CI infrastructure layer:**
-- **Containerized Jenkins Master** - Central orchestration and UI
+**Infrastructure Components:**
+- **Jenkins Master** - Central orchestration and web interface
 - **Jenkins Agent(s)** - Distributed build executors
-- **Docker capability via socket binding** - Build Docker images within pipelines
-- **Persistent storage** - Jenkins configuration and build history
-- **Network isolation** - Secure container communication
+- **Docker Socket Binding** - Build Docker images within pipelines
+- **Persistent Storage** - Configuration and build history retention
+- **Network Isolation** - Secure container communication
 
-**Key Features:**
-- Jenkins master-agent architecture for scalable builds
-- Docker Compose orchestration for easy deployment
-- Custom Jenkins image with pre-installed tools (Python, Git, Docker CLI)
-- Persistent volumes for data retention
-- Ready for CI pipeline execution
+**Key Capabilities:**
+- Scalable master-agent architecture
+- Docker Compose orchestration
+- Pre-configured build tools (Python, Git, Docker CLI)
+- Volume persistence for data retention
+- CI/CD pipeline execution ready
+
+---
+
+## 🏗️ Architecture
+
+```mermaid
+graph TB
+    subgraph "Host Machine"
+        Docker[Docker Daemon<br/>Port: /var/run/docker.sock]
+    end
+    
+    subgraph "Docker Network: jenkins-network"
+        Master[Jenkins Master<br/>Port: 8081<br/>User: root]
+        Agent[Jenkins Agent<br/>agent-1<br/>Workspace: jenkins_agent/]
+    end
+    
+    subgraph "Persistent Volumes"
+        MasterVol[jenkins_home/<br/>Jenkins Configuration]
+        AgentVol[jenkins_agent/<br/>Build Workspace]
+    end
+    
+    Master -->|Orchestrates| Agent
+    Master -.->|Socket Binding| Docker
+    Agent -.->|Socket Binding| Docker
+    Master -->|Persists| MasterVol
+    Agent -->|Persists| AgentVol
+    
+    User[User Browser] -->|http://localhost:8081| Master
+```
+
+### Component Details
+
+| Component | Purpose | Port | Volume |
+|-----------|---------|------|--------|
+| **Jenkins Master** | Web UI, Pipeline orchestration | 8081 (HTTP), 50000 (Agent) | `./jenkins_home` |
+| **Jenkins Agent** | Build execution, Docker operations | - | `./jenkins_agent` |
+| **Docker Socket** | Container build capability | `/var/run/docker.sock` | Host socket |
+| **Network** | Isolated container communication | `jenkins-network` (bridge) | - |
 
 ---
 
 ## 📦 Prerequisites
 
-Before starting, ensure you have:
+**Required Software:**
 
-- **Docker Engine** 20.10+ ([Install Docker](https://docs.docker.com/get-docker/))
-- **Docker Compose** 2.0+ (included with Docker Desktop)
-- **Git** for version control
-- **4GB RAM minimum** (8GB recommended)
-- **Operating System**: Linux, macOS, or Windows with WSL2
+| Tool | Minimum Version | Purpose |
+|------|----------------|---------|
+| Docker Engine | 20.10+ | Container runtime |
+| Docker Compose | 2.0+ | Multi-container orchestration |
+| Git | 2.0+ | Version control |
 
-**Verify installations:**
+**System Requirements:**
+- **RAM**: 4GB minimum (8GB recommended)
+- **Disk**: 10GB free space
+- **OS**: Linux, macOS, or Windows with WSL2
+
+**Verification Commands:**
 ```bash
-docker --version
-docker compose version
-git --version
+docker --version          # Should show 20.10+
+docker compose version    # Should show 2.0+
+git --version            # Should show 2.0+
 ```
 
 ---
 
 ## 🚀 Quick Start
 
-### 1. Clone the Repository
+### 1. Clone Repository
 ```bash
 git clone https://github.com/githuber20202/Compose-with-Jenkins-.git
 cd Compose-with-Jenkins-
 ```
 
-### 2. Start Jenkins Environment
+### 2. Launch Infrastructure
 ```bash
 docker compose up -d
 ```
 
-### 3. Access Jenkins UI
-Open your browser and navigate to:  
-👉 **http://127.0.0.1:8081**
+**Expected Output:**
+```
+[+] Running 3/3
+ ✔ Network jenkins-lab_jenkins-network  Created
+ ✔ Container jenkins-master             Started
+ ✔ Container jenkins-agent-1            Started
+```
 
-### 4. Get Initial Admin Password
+### 3. Access Jenkins
+Navigate to: **http://localhost:8081**
+
+### 4. Retrieve Initial Password
 ```bash
 docker exec jenkins-master cat /var/jenkins_home/secrets/initialAdminPassword
 ```
 
-### 5. Complete Setup Wizard
-- Paste the admin password
-- Install **recommended plugins**
-- Create your **admin user**
-- Start building your first pipeline! 🎯
+### 5. Complete Setup
+1. Paste the initial admin password
+2. Install **recommended plugins**
+3. Create admin user account
+4. Configure Jenkins URL (default: http://localhost:8081)
+5. Start building pipelines
 
 ---
 
-## 🏗️ Architecture
+## 🔄 CI Pipeline Flow
 
+```mermaid
+sequenceDiagram
+    participant Dev as Developer
+    participant GH as GitHub<br/>(JB-PROJECT)
+    participant JM as Jenkins Master
+    participant JA as Jenkins Agent
+    participant DH as Docker Hub
+    participant GO as GitOps Repo<br/>(jb-gitops)
+    participant AC as Argo CD
+
+    Dev->>GH: 1. Push code
+    GH->>JM: 2. Webhook trigger
+    JM->>JA: 3. Assign build job
+    JA->>GH: 4. Clone source code
+    JA->>JA: 5. Build Docker image
+    JA->>DH: 6. Push image<br/>(sha-abc123)
+    JA->>GO: 7. Update values.yaml<br/>(new image tag)
+    GO->>AC: 8. Git commit detected
+    AC->>AC: 9. Sync & Deploy to K8s
+    
+    Note over JM,JA: CI Phase (This Repository)
+    Note over GO,AC: CD Phase (GitOps Repository)
 ```
-┌─────────────────────────────────┐
-│     Jenkins Master              │
-│     (Port 8081)                 │
-│  - Web UI                       │
-│  - Pipeline Orchestration       │
-│  - Docker CLI Access            │
-└────────────┬────────────────────┘
-             │
-        ┌────┴─────┐
-        │ Network  │
-        │ Bridge   │
-        └────┬─────┘
-             │
-┌────────────┴────────────────────┐
-│     Jenkins Agent               │
-│  - Build Executor               │
-│  - Docker CLI Access            │
-│  - Workspace: jenkins_agent/    │
-└─────────────────────────────────┘
-             │
-        ┌────┴─────┐
-        │  Docker  │
-        │  Socket  │
-        └──────────┘
+
+### Pipeline Stages
+
+The included `jenkinsfile` implements a complete CI workflow:
+
+```mermaid
+graph LR
+    A[Workspace Cleanup] --> B[Checkout Code]
+    B --> C[Verify Files]
+    C --> D[Build Docker Image]
+    D --> E[Push to Registry]
+    E --> F[Update GitOps]
+    F --> G[Test Pull]
+    G --> H[Cleanup]
 ```
+
+**Stage Breakdown:**
+
+1. **Workspace Cleanup** - Clean previous build artifacts
+2. **Checkout** - Clone source code from GitHub (JB-PROJECT)
+3. **Verify Files** - Validate required files exist
+4. **Build & Push** - Create Docker image with Git SHA tag
+5. **Update GitOps** - Modify `values.yaml` in GitOps repository
+6. **Test Pull** - Verify image availability
+7. **Cleanup** - Remove local Docker images
 
 ---
 
@@ -109,242 +182,150 @@ docker exec jenkins-master cat /var/jenkins_home/secrets/initialAdminPassword
 
 ```
 jenkins-lab/
-├── docker-compose.yml      # Defines Jenkins master & agent services
-├── Dockerfile.jenkins      # Custom Jenkins image with Docker CLI
-├── jenkinsfile            # Example CI/CD pipeline
+├── docker-compose.yml      # Service orchestration
+├── Dockerfile.jenkins      # Custom Jenkins image
+├── jenkinsfile            # CI pipeline definition
 ├── .gitignore             # Excludes jenkins_home/ and jenkins_agent/
-├── jenkins_home/          # Jenkins persistent data (auto-created)
-├── jenkins_agent/         # Agent workspace (auto-created)
+├── jenkins_home/          # Jenkins data (auto-created, gitignored)
+├── jenkins_agent/         # Agent workspace (auto-created, gitignored)
 └── README.md              # This documentation
 ```
 
-**Key Files:**
-- `docker-compose.yml` → Orchestrates Jenkins master and agent containers
-- `Dockerfile.jenkins` → Builds custom Jenkins image with Python, Git, and Docker CLI
-- `jenkinsfile` → Complete CI/CD pipeline example (build → push → GitOps update)
+### File Descriptions
+
+**`docker-compose.yml`**
+- Defines Jenkins master and agent services
+- Configures network and volume bindings
+- Sets environment variables
+
+**`Dockerfile.jenkins`**
+- Extends official Jenkins LTS image
+- Installs Python, Git, Docker CLI
+- Configures build environment
+
+**`jenkinsfile`**
+- Complete CI pipeline implementation
+- Builds and pushes Docker images
+- Updates GitOps repository with new image tags
 
 ---
 
-## 🐳 Docker CLI Installation Explained
+## 🐳 Docker Socket Binding Explained
 
-The `Dockerfile.jenkins` includes a critical section that installs Docker CLI inside the Jenkins container:
+### Architecture Comparison
 
+```mermaid
+graph TB
+    subgraph "Socket Binding (This Project)"
+        JC1[Jenkins Container<br/>Docker CLI installed]
+        JC1 -.->|Uses socket| HD1[Host Docker Daemon]
+    end
+    
+    subgraph "Docker-in-Docker (Alternative)"
+        JC2[Jenkins Container<br/>Docker CLI installed]
+        JC2 -->|Communicates with| DD[Nested Docker Daemon<br/>Runs inside container]
+    end
+```
+
+### Implementation Details
+
+**Docker CLI Installation** (`Dockerfile.jenkins`):
 ```dockerfile
-# Install Docker CLI
 RUN curl -fsSL https://get.docker.com -o get-docker.sh && \
     sh get-docker.sh && \
     rm get-docker.sh
 ```
 
-### What Does This Do?
-
-This command performs three operations in sequence:
-
-1. **`curl -fsSL https://get.docker.com -o get-docker.sh`**
-   - Downloads Docker's official installation script from `https://get.docker.com`
-   - Saves it as `get-docker.sh` in the container
-   - Flags explained:
-     - `-f` (fail silently) - Don't show error page on HTTP errors
-     - `-s` (silent) - Don't show progress bar
-     - `-S` (show errors) - Show errors even in silent mode
-     - `-L` (follow redirects) - Follow HTTP redirects if any
-
-2. **`sh get-docker.sh`**
-   - Executes the downloaded installation script
-   - Installs Docker CLI tools (docker command) inside the Jenkins container
-   - Detects the OS and installs the appropriate Docker version
-
-3. **`rm get-docker.sh`**
-   - Removes the installation script after use
-   - Keeps the Docker image size smaller (cleanup best practice)
-
-### Why Do We Need Docker CLI in Jenkins?
-
-**The Problem:**
-- Jenkins needs to build Docker images as part of CI pipelines
-- Jenkins runs inside a Docker container itself
-- By default, containers don't have Docker installed
-
-**The Solution: Docker Socket Binding (NOT Docker-in-Docker)**
-- Install Docker CLI inside the Jenkins container
-- Mount the host's Docker socket (`/var/run/docker.sock`) as a volume
-- This allows Jenkins to communicate with the host's Docker daemon
-- **Important:** This is NOT Docker-in-Docker (DinD)!
-
-**How It Works:**
-```
-┌─────────────────────────────────────┐
-│   Jenkins Container                 │
-│                                     │
-│   ┌──────────────────┐             │
-│   │  Docker CLI      │             │
-│   │  (installed)     │             │
-│   └────────┬─────────┘             │
-│            │                        │
-│            │ communicates via       │
-│            │ /var/run/docker.sock   │
-└────────────┼────────────────────────┘
-             │
-             ▼
-┌─────────────────────────────────────┐
-│   Host Machine                      │
-│                                     │
-│   ┌──────────────────┐             │
-│   │  Docker Daemon   │             │
-│   │  (actual engine) │             │
-│   └──────────────────┘             │
-└─────────────────────────────────────┘
+**Socket Mounting** (`docker-compose.yml`):
+```yaml
+volumes:
+  - /var/run/docker.sock:/var/run/docker.sock
 ```
 
-**What This Enables:**
-- ✅ Build Docker images from Jenkinsfile
-- ✅ Push images to Docker Hub/registries
-- ✅ Run Docker commands in pipeline stages
-- ✅ Test containerized applications
+### How It Works
 
-**Example Pipeline Usage:**
-```groovy
-stage('Build Docker Image') {
-    steps {
-        script {
-            // This works because Docker CLI is installed
-            sh 'docker build -t myapp:latest .'
-            sh 'docker push myapp:latest'
-        }
-    }
-}
-```
+1. **Docker CLI** is installed inside Jenkins container
+2. **Host Docker socket** (`/var/run/docker.sock`) is mounted as volume
+3. Jenkins communicates with **host Docker daemon** via socket
+4. Images are built on the **host machine**, not inside container
 
-### Docker Socket Binding vs Docker-in-Docker (DinD)
+**Benefits:**
+- ✅ Simple setup and configuration
+- ✅ Fast builds (uses host Docker cache)
+- ✅ Low resource overhead
+- ✅ Ideal for development and learning
 
-**What This Project Uses: Docker Socket Binding** 🔌
+**Limitations:**
+- ⚠️ Security risk: Full Docker access to host
+- ⚠️ Not recommended for production environments
+- ⚠️ Requires careful permission management
 
-This setup uses **Docker socket binding**, which means:
-- Jenkins container has Docker CLI installed
-- Host's Docker socket (`/var/run/docker.sock`) is mounted into the container
-- Jenkins uses the **host's Docker daemon** to build images
-- No separate Docker daemon runs inside Jenkins
+### Comparison Table
 
-```
-Jenkins Container          Host Machine
-┌─────────────────┐       ┌──────────────────┐
-│  Docker CLI     │──────▶│  Docker Daemon   │
-│  (client only)  │ socket│  (actual engine) │
-└─────────────────┘       └──────────────────┘
-```
-
-**What is Docker-in-Docker (DinD)?** 🐳
-
-DinD is a **different approach** where:
-- A complete Docker daemon runs INSIDE the Jenkins container
-- Uses `docker:dind` image
-- Completely isolated from host's Docker
-- More secure but more complex
-
-```
-Jenkins Container
-┌─────────────────────────┐
-│  Docker CLI             │
-│       ↓                 │
-│  Docker Daemon (nested) │
-│  (runs inside container)│
-└─────────────────────────┘
-```
-
-**Comparison:**
-
-| Feature | Socket Binding (This Project) | Docker-in-Docker (DinD) |
-|---------|------------------------------|-------------------------|
-| **Setup Complexity** | ✅ Simple | ⚠️ Complex |
-| **Performance** | ✅ Fast (uses host cache) | ⚠️ Slower (no cache sharing) |
-| **Security** | ⚠️ Full host Docker access | ✅ Isolated |
-| **Resource Usage** | ✅ Low | ⚠️ High (nested daemon) |
-| **Production Ready** | ❌ No | ✅ Yes (with proper config) |
-| **Learning/Dev** | ✅ Perfect | ⚠️ Overkill |
-
-### Security Considerations
-
-⚠️ **Important Notes About Socket Binding:**
-
-1. **Docker Socket Mounting Risk**
-   - Mounting `/var/run/docker.sock` gives Jenkins **full Docker access**
-   - Jenkins can start/stop ANY container on the host
-   - Jenkins can access ALL Docker volumes on the host
-   - Essentially gives **root-equivalent access** to the host
-   - This is a **major security risk** in production environments
-
-2. **Alternative Approaches for Production:**
-   - **Docker-in-Docker (DinD)** - Run isolated Docker daemon inside container
-   - **Kaniko** - Build images without Docker daemon (Kubernetes-native)
-   - **Buildah** - Daemonless container builds (rootless)
-   - **Podman** - Rootless container engine
-
-3. **Why We Use Socket Binding for Learning:**
-   - ✅ Extremely simple setup
-   - ✅ Fast builds (uses host's Docker cache)
-   - ✅ No nested Docker daemon overhead
-   - ✅ Easy to understand and debug
-   - ⚠️ **NOT recommended for production**
-
-### Verification
-
-After the container starts, you can verify Docker CLI installation:
-
-```bash
-# Check Docker CLI is installed
-docker exec jenkins-master docker --version
-
-# Test Docker access
-docker exec jenkins-master docker ps
-
-# View Docker info
-docker exec jenkins-master docker info
-```
-
-**Expected Output:**
-```
-Docker version 24.0.x, build xxxxx
-```
-
-If you see this output, Docker CLI is successfully installed and can communicate with the host's Docker daemon through the mounted socket.
+| Feature | Socket Binding | Docker-in-Docker |
+|---------|---------------|------------------|
+| **Setup Complexity** | Simple | Complex |
+| **Performance** | Fast (shared cache) | Slower (isolated) |
+| **Security** | Lower (host access) | Higher (isolated) |
+| **Resource Usage** | Low | High (nested daemon) |
+| **Use Case** | Development/Learning | Production |
 
 ---
 
-## ⚠️ Security Considerations
+## ⚙️ Configuration
 
-**IMPORTANT: This setup is for LEARNING PURPOSES ONLY!**
+### Environment Variables
 
-### Security Warnings:
-- ⚠️ **Root User**: Jenkins master runs as `root` for simplicity
-- ⚠️ **Docker Socket**: `/var/run/docker.sock` is mounted (full Docker access)
-- ⚠️ **No TLS**: HTTP only, no HTTPS encryption
-- ⚠️ **Default Ports**: Using standard ports without firewall rules
+The `jenkinsfile` uses the following credentials:
 
-### For Production Environments:
-- ✅ Use proper user permissions (non-root)
-- ✅ Avoid mounting Docker socket (use Docker-in-Docker or Kaniko)
-- ✅ Enable HTTPS with valid certificates
-- ✅ Implement network segmentation and firewall rules
-- ✅ Use secrets management (HashiCorp Vault, AWS Secrets Manager)
-- ✅ Enable audit logging and monitoring
+```groovy
+environment {
+    DOCKER_HUB_REPO = 'formy5000/resources_viewer'
+    DOCKER_HUB_CREDS = credentials('dockerhub-credentials')
+    GITOPS_REPO = 'https://github.com/githuber20202/jb-gitops.git'
+    GITHUB_CREDS = credentials('github-credentials')
+}
+```
+
+**Required Jenkins Credentials:**
+
+| ID | Type | Purpose |
+|----|------|---------|
+| `dockerhub-credentials` | Username/Password | Docker Hub authentication |
+| `github-credentials` | Username/Password | GitHub repository access |
+
+### Adding Credentials in Jenkins
+
+1. Navigate to **Manage Jenkins** → **Credentials**
+2. Select **(global)** domain
+3. Click **Add Credentials**
+4. Configure:
+   - **Kind**: Username with password
+   - **Username**: Your Docker Hub / GitHub username
+   - **Password**: Your access token
+   - **ID**: `dockerhub-credentials` or `github-credentials`
 
 ---
 
 ## 💡 Usage Examples
 
-### Create Your First Pipeline
+### Create Pipeline from Jenkinsfile
 
-1. **Navigate to Jenkins UI**: http://127.0.0.1:8081
-2. Click **"New Item"**
-3. Enter a name and select **"Pipeline"**
-4. In the Pipeline section, choose **"Pipeline script from SCM"**
-5. Configure your Git repository
-6. Set **Script Path** to `jenkinsfile`
-7. Click **"Save"** and **"Build Now"**
+1. Open Jenkins UI: http://localhost:8081
+2. Click **New Item**
+3. Enter name: `CI-Pipeline`
+4. Select **Pipeline** → **OK**
+5. Under **Pipeline** section:
+   - **Definition**: Pipeline script from SCM
+   - **SCM**: Git
+   - **Repository URL**: `https://github.com/githuber20202/JB-PROJECT.git`
+   - **Branch**: `main`
+   - **Script Path**: `jenkinsfile`
+6. Click **Save** → **Build Now**
 
-### Add More Agents
+### Scale with Additional Agents
 
-Edit `docker-compose.yml` and duplicate the agent service:
+Edit `docker-compose.yml`:
 
 ```yaml
 jenkins-agent-2:
@@ -364,7 +345,7 @@ jenkins-agent-2:
   restart: unless-stopped
 ```
 
-Then restart:
+Apply changes:
 ```bash
 docker compose up -d
 ```
@@ -382,13 +363,13 @@ docker logs -f jenkins-agent-1
 docker compose logs -f
 ```
 
-### Stop Environment
+### Stop Infrastructure
 
 ```bash
-# Stop containers (keeps data)
+# Stop containers (preserve data)
 docker compose stop
 
-# Stop and remove containers (keeps volumes)
+# Stop and remove containers (preserve volumes)
 docker compose down
 
 # Remove everything including volumes
@@ -401,64 +382,76 @@ docker compose down -v
 
 ### Jenkins Won't Start
 
-**Problem**: Container exits immediately or won't start
+**Symptoms**: Container exits immediately
 
 **Solutions**:
 ```bash
-# Check if port 8081 is already in use
+# Check port availability
 netstat -an | grep 8081  # Linux/Mac
 netstat -ano | findstr 8081  # Windows
 
-# Check Docker is running
+# Verify Docker is running
 docker ps
 
-# View container logs
+# Check container logs
 docker logs jenkins-master
 
 # Restart Docker service
 sudo systemctl restart docker  # Linux
-# Or restart Docker Desktop on Mac/Windows
 ```
 
-### Permission Denied on jenkins_home
+### Permission Denied Errors
 
-**Problem**: `Permission denied` errors in logs
+**Symptoms**: `Permission denied` in logs
 
 **Solution**:
 ```bash
 # Fix ownership (Jenkins uses UID 1000)
 sudo chown -R 1000:1000 jenkins_home/
 
-# Or on Windows with WSL2
+# Windows WSL2
 wsl sudo chown -R 1000:1000 jenkins_home/
 ```
 
-### Agent Not Connecting
+### Agent Connection Issues
 
-**Problem**: Agent shows as offline in Jenkins UI
+**Symptoms**: Agent shows offline in Jenkins UI
 
-**Solutions**:
-1. Check agent logs: `docker logs jenkins-agent-1`
-2. Verify network: `docker network inspect jenkins-lab_jenkins-network`
-3. Restart agent: `docker compose restart jenkins-agent`
-4. Check Jenkins master logs for connection errors
+**Diagnostics**:
+```bash
+# Check agent logs
+docker logs jenkins-agent-1
+
+# Verify network
+docker network inspect jenkins-lab_jenkins-network
+
+# Restart agent
+docker compose restart jenkins-agent
+```
 
 ### Docker Commands Fail in Pipeline
 
-**Problem**: `docker: command not found` in Jenkins pipeline
+**Symptoms**: `docker: command not found`
 
-**Solution**:
-- Verify Docker socket is mounted in `docker-compose.yml`
-- Check Docker CLI is installed in the Jenkins image
-- Run: `docker exec jenkins-master docker --version`
-
-### Out of Disk Space
-
-**Problem**: Jenkins fills up disk space
-
-**Solution**:
+**Verification**:
 ```bash
-# Clean old Docker images
+# Check Docker CLI installation
+docker exec jenkins-master docker --version
+
+# Verify socket mount
+docker exec jenkins-master ls -la /var/run/docker.sock
+
+# Test Docker access
+docker exec jenkins-master docker ps
+```
+
+### Disk Space Issues
+
+**Symptoms**: Build failures due to disk space
+
+**Cleanup**:
+```bash
+# Remove unused Docker resources
 docker system prune -a
 
 # Clean Jenkins workspace
@@ -470,163 +463,240 @@ docker system df
 
 ---
 
-## 🔗 Related Repositories
+## ⚠️ Security Considerations
 
-This Jenkins infrastructure is part of a complete CI/CD workflow:
+**⚠️ WARNING: This setup is designed for LEARNING and DEVELOPMENT only!**
 
-- **[JB-PROJECT](https://github.com/githuber20202/JB-PROJECT)** - Application source code (Python Flask)
-- **[jb-gitops](https://github.com/githuber20202/jb-gitops)** - GitOps repository for CD (Helm charts + Argo CD)
-- **[Compose-with-Jenkins](https://github.com/githuber20202/Compose-with-Jenkins-.git)** - This repository (CI infrastructure)
+### Current Security Limitations
 
-**Separation of Concerns:**
-- **CI (This Repo)** → Jenkins infrastructure for building and testing
-- **CD (GitOps Repo)** → Argo CD handles deployment to Kubernetes
-- **Source Code** → Application being built and deployed
+| Issue | Risk Level | Impact |
+|-------|-----------|--------|
+| Root user execution | 🔴 High | Full container privileges |
+| Docker socket mounting | 🔴 High | Host Docker access |
+| HTTP only (no TLS) | 🟡 Medium | Unencrypted traffic |
+| Default ports | 🟡 Medium | Predictable attack surface |
+| No authentication hardening | 🟡 Medium | Basic auth only |
 
-**What is GitOps?**
+### Production Hardening Checklist
 
-GitOps is a deployment methodology where:
-- Infrastructure and application configurations are stored in Git
-- Git serves as the single source of truth
-- Automated tools (like Argo CD) sync Git state to the cluster
-- Changes are made via Git commits, not manual kubectl commands
+For production deployments, implement:
 
-**In this architecture:**
-1. **Jenkins (CI)** builds Docker images and pushes to registry
-2. **Jenkins updates** the `values.yaml` file in the GitOps repository with the new image tag
-3. **Argo CD (CD)** detects the Git commit and deploys automatically to Kubernetes
-4. **Kubernetes** runs the updated application
+- [ ] **Non-root user** - Run Jenkins as unprivileged user
+- [ ] **Remove Docker socket** - Use Docker-in-Docker or Kaniko
+- [ ] **Enable HTTPS** - Configure TLS with valid certificates
+- [ ] **Network segmentation** - Implement firewall rules
+- [ ] **Secrets management** - Use HashiCorp Vault or AWS Secrets Manager
+- [ ] **Audit logging** - Enable comprehensive logging
+- [ ] **Regular updates** - Patch Jenkins and plugins
+- [ ] **Access control** - Implement RBAC and SSO
+- [ ] **Vulnerability scanning** - Regular security audits
 
-**Why update values.yaml in Git?**
+### Alternative Build Methods
 
-The `values.yaml` file in the GitOps repository contains Helm chart configuration, including:
+For production environments, consider:
+
+**Kaniko** - Daemonless Docker builds
 ```yaml
-image:
-  repository: formy5000/resources_viewer
-  tag: "sha-abc123"  # ← Jenkins updates this line
+# No Docker socket required
+# Runs in Kubernetes
+# Rootless execution
 ```
 
-When Jenkins builds a new Docker image, it:
-1. Tags the image with the Git commit SHA (e.g., `sha-abc123`)
-2. Pushes the image to Docker Hub
-3. **Updates the `values.yaml` file** in the GitOps repo with the new tag
-4. Commits and pushes the change to GitHub
+**Buildah** - Rootless container builds
+```yaml
+# No daemon required
+# OCI-compliant
+# Enhanced security
+```
 
-This Git commit triggers Argo CD to:
-- Detect the change in the GitOps repository
-- Pull the new Helm values
-- Deploy the updated application to Kubernetes
-
-**Benefits of this approach:**
-- ✅ **Separation of concerns** - CI builds, CD deploys
-- ✅ **Git as source of truth** - All changes tracked in version control
-- ✅ **Audit trail** - Every deployment has a Git commit
-- ✅ **Easy rollbacks** - Revert the Git commit to rollback
-- ✅ **No direct cluster access** - Jenkins doesn't need Kubernetes credentials
+**Docker-in-Docker (DinD)** - Isolated Docker daemon
+```yaml
+# Complete isolation
+# Higher resource usage
+# More complex setup
+```
 
 ---
 
-## 📚 What This Repository Provides
+## 🔗 Related Repositories
 
-This repository focuses **exclusively on the CI infrastructure**:
+This Jenkins infrastructure is part of a complete CI/CD ecosystem:
 
-**Included in This Repo:**
-- ✅ Jenkins Master container configuration
-- ✅ Jenkins Agent(s) setup for distributed builds
-- ✅ Docker Compose orchestration
-- ✅ Custom Jenkins image with build tools (Python, Git, Docker CLI)
-- ✅ Network and volume configuration
-- ✅ Example Jenkinsfile demonstrating:
-  - Building Docker images
-  - Pushing to Docker Hub
-  - **Updating values.yaml in GitOps repository**
-
-**NOT Included (Handled by Other Repos):**
-- ❌ Application source code → See [JB-PROJECT](https://github.com/githuber20202/JB-PROJECT)
-- ❌ Kubernetes deployment configs → See [jb-gitops](https://github.com/githuber20202/jb-gitops)
-- ❌ Argo CD setup → Handled in GitOps repository
-- ❌ Helm charts → Stored in GitOps repository
-
-**CI vs CD Separation:**
-
-| Component | Responsibility | Repository |
-|-----------|---------------|------------|
-| **Jenkins (CI)** | Build images, Push to registry, **Update values.yaml** | This Repo |
-| **GitOps Repo** | Store Helm charts and values.yaml | jb-gitops |
-| **Argo CD (CD)** | Sync Git → Kubernetes, Deploy | jb-gitops |
-| **Application** | Source Code | JB-PROJECT |
-
-**Jenkins Pipeline Flow:**
-```
-1. Checkout code from JB-PROJECT
-2. Build Docker image
-3. Tag image with Git SHA (e.g., sha-abc123)
-4. Push image to Docker Hub
-5. Clone GitOps repository (jb-gitops)
-6. Update values.yaml with new image tag
-7. Commit and push to GitOps repository
-8. [Argo CD takes over from here]
+```mermaid
+graph LR
+    A[JB-PROJECT<br/>Application Code] -->|Triggers| B[jenkins-lab<br/>CI Infrastructure]
+    B -->|Builds Image| C[Docker Hub<br/>Image Registry]
+    B -->|Updates| D[jb-gitops<br/>GitOps Repo]
+    D -->|Syncs| E[Argo CD<br/>CD Controller]
+    E -->|Deploys| F[Kubernetes<br/>Production]
 ```
 
-**What Jenkins Does NOT Do:**
-- ❌ Does not deploy to Kubernetes directly
-- ❌ Does not need kubectl or cluster credentials
-- ❌ Does not manage Helm releases
-- ❌ Only updates the Git repository (GitOps principle)
+### Repository Links
 
-**Technical Documentation:**
+| Repository | Purpose | Technology |
+|------------|---------|------------|
+| [JB-PROJECT](https://github.com/githuber20202/JB-PROJECT) | Application source code | Python Flask |
+| [jenkins-lab](https://github.com/githuber20202/Compose-with-Jenkins-.git) | CI infrastructure (this repo) | Jenkins, Docker |
+| [jb-gitops](https://github.com/githuber20202/jb-gitops) | GitOps deployment configs | Helm, Argo CD |
+
+### Workflow Integration
+
+**CI Phase (This Repository):**
+1. Developer pushes code to JB-PROJECT
+2. Jenkins detects change via webhook
+3. Pipeline builds Docker image
+4. Image pushed to Docker Hub with Git SHA tag
+5. Jenkins updates `values.yaml` in jb-gitops repository
+
+**CD Phase (GitOps Repository):**
+6. Argo CD detects Git commit in jb-gitops
+7. Argo CD syncs Helm chart with new image tag
+8. Application deployed to Kubernetes cluster
+
+**Separation of Concerns:**
+- **CI (Jenkins)** - Build, test, package
+- **CD (Argo CD)** - Deploy, sync, monitor
+- **GitOps** - Single source of truth
+
+---
+
+## 📚 Technical Documentation
+
+### Jenkins Pipeline Reference
+
+The `jenkinsfile` implements these stages:
+
+```groovy
+pipeline {
+    agent any
+    
+    stages {
+        stage('Workspace Cleanup') { ... }
+        stage('Checkout') { ... }
+        stage('Verify Files') { ... }
+        stage('Build & Push with Docker') { ... }
+        stage('Update GitOps Repository') { ... }
+        stage('Test Pull') { ... }
+        stage('Cleanup Docker Images') { ... }
+    }
+}
+```
+
+**Key Operations:**
+
+1. **Git SHA Tagging**
+   ```groovy
+   env.GIT_COMMIT_SHORT = sh(
+       script: "git rev-parse --short HEAD",
+       returnStdout: true
+   ).trim()
+   ```
+
+2. **Docker Image Build**
+   ```groovy
+   docker build -t ${DOCKER_HUB_REPO}:sha-${env.GIT_COMMIT_SHORT} .
+   ```
+
+3. **GitOps Update**
+   ```groovy
+   sed -i 's/tag: .*/tag: "sha-${env.GIT_COMMIT_SHORT}"/' values.yaml
+   ```
+
+### External Resources
+
 - [Jenkins Pipeline Documentation](https://www.jenkins.io/doc/book/pipeline/)
 - [Docker Compose Reference](https://docs.docker.com/compose/)
 - [Jenkins Master-Agent Architecture](https://www.jenkins.io/doc/book/scaling/architecting-for-scale/)
+- [GitOps Principles](https://www.gitops.tech/)
 
 ---
 
 ## 🤝 Contributing
 
-Contributions are welcome to improve this CI/CD pipeline implementation.
+Contributions are welcome to improve this CI infrastructure.
 
-**How to contribute:**
-- 🐛 **Report bugs** - Open an issue with detailed reproduction steps
-- 💡 **Suggest improvements** - Propose enhancements to the pipeline
-- 📝 **Improve documentation** - Submit PRs for README updates
-- 🔧 **Add features** - Extend pipeline capabilities
+**How to Contribute:**
 
-**Guidelines:**
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/improvement`)
-3. Commit your changes (`git commit -m 'Add some improvement'`)
-4. Push to the branch (`git push origin feature/improvement`)
-5. Open a Pull Request with detailed description
+2. Create feature branch: `git checkout -b feature/improvement`
+3. Commit changes: `git commit -m 'Add improvement'`
+4. Push to branch: `git push origin feature/improvement`
+5. Open Pull Request with detailed description
+
+**Contribution Guidelines:**
+
+- Follow existing code style
+- Update documentation for changes
+- Test changes locally before submitting
+- Include clear commit messages
 
 ---
 
 ## 📄 License
 
-This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the **MIT License**.
 
-**TL;DR**: You can use, modify, and distribute this project freely, even for commercial purposes, as long as you include the original license.
+**TL;DR**: Free to use, modify, and distribute, including commercial use, with attribution.
 
 ---
 
 ## 👤 Author
 
-**Alexander-Y** — DevOps Learning Journey 🚀
+**Alexander-Y** — DevOps Learning Journey
 
 - GitHub: [@githuber20202](https://github.com/githuber20202)
-- Project Link: [Compose-with-Jenkins](https://github.com/githuber20202/Compose-with-Jenkins-.git)
+- Repository: [Compose-with-Jenkins](https://github.com/githuber20202/Compose-with-Jenkins-.git)
 
 ---
 
 ## 🙏 Acknowledgments
 
-- Jenkins community for excellent documentation
+- Jenkins community for comprehensive documentation
 - Docker team for containerization technology
-- The DevOps community for sharing knowledge and best practices
+- DevOps community for knowledge sharing and best practices
 
 ---
 
-**Production-Ready CI Infrastructure** 🚀
+**⭐ If you found this project helpful, please star the repository!**
 
-This repository provides the CI layer. For the complete CI/CD workflow, see the related repositories above.
+---
 
-If you found this implementation useful, please ⭐ star the repository!
+## 📖 Quick Reference
+
+### Essential Commands
+
+```bash
+# Start infrastructure
+docker compose up -d
+
+# View logs
+docker compose logs -f
+
+# Stop infrastructure
+docker compose down
+
+# Get initial password
+docker exec jenkins-master cat /var/jenkins_home/secrets/initialAdminPassword
+
+# Access Jenkins
+open http://localhost:8081
+```
+
+### Port Mapping
+
+| Service | Internal Port | External Port |
+|---------|--------------|---------------|
+| Jenkins UI | 8080 | 8081 |
+| Agent Connection | 50000 | 50000 |
+
+### Volume Mapping
+
+| Container Path | Host Path | Purpose |
+|---------------|-----------|---------|
+| `/var/jenkins_home` | `./jenkins_home` | Jenkins data |
+| `/home/jenkins/agent` | `./jenkins_agent` | Agent workspace |
+| `/var/run/docker.sock` | `/var/run/docker.sock` | Docker socket |
+
+---
+
+*Last Updated: January 2025*
